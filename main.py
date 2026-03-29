@@ -74,13 +74,17 @@ async def account_login(bot: Client, m: Message):
                 content = f.read().split("\n")
             for i in content:
                 if "://" in i:
-                    links.append(i.split("://", 1))
+                    links.append(i.strip().split("://", 1))
             os.remove(x)
         elif "://" in input.text:
-            links.append(input.text.split("://", 1))
+            links.append(input.text.strip().split("://", 1))
             await input.delete(True)
         else:
             await editable.edit("Invalid Input! Send a file or link.")
+            return
+
+        if not links:
+            await editable.edit("No links found in the input!")
             return
 
         await editable.edit(f"Total links found: **{len(links)}**\nSend start index (e.g. 1)")
@@ -120,26 +124,36 @@ async def account_login(bot: Client, m: Message):
 
         import helper
         for i in range(count - 1, len(links)):
-            url = "https://" + links[i][1]
-            name1 = links[i][0].strip()
-            name = f'{str(count).zfill(3)}) {name1[:60]}'
-            cc = f'**{str(count).zfill(3)}.** {name1}\n**Batch:** {b_name}\n**By:** {CR}'
-
             try:
+                # URL cleaning logic
+                url = "https://" + links[i][1]
+                name1 = links[i][0].strip()
+                name = f'{str(count).zfill(3)}) {name1[:60]}'
+                cc = f'**{str(count).zfill(3)}.** {name1}\n**Batch:** {b_name}\n**By:** {CR}'
+
                 if "drive" in url:
                     ka = await helper.download(url, name)
                     await bot.send_document(m.chat.id, ka, caption=cc)
-                    os.remove(ka)
+                    if os.path.exists(ka): os.remove(ka)
                 else:
+                    # Video download with retry logic via helper
                     res_file = await helper.download_video(url, name, res_choice)
-                    await helper.send_vid(bot, m, cc, res_file, thumb, name)
+                    if res_file:
+                        await helper.send_vid(bot, m, cc, res_file, thumb, name)
+                    else:
+                        await m.reply_text(f"❌ **Failed to download:** `{name}`")
+                
                 count += 1
+                # Chhota delay taaki Telegram flood limit na de
+                await asyncio.sleep(1)
+
             except Exception as e:
-                await m.reply_text(f"**Error in {name}:** {e}")
+                await m.reply_text(f"⚠️ **Skipped {count}:** `{links[i][0]}`\n**Error:** {str(e)[:100]}")
                 count += 1
+                continue
 
         await m.reply_text("🔰 **All Tasks Done!** 🔰")
     except Exception as e:
-        await m.reply_text(f"Error: {e}")
+        await m.reply_text(f"Bot Error: {e}")
 
 bot.run()
