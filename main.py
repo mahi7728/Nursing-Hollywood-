@@ -1,22 +1,22 @@
-from pyrogram.errors.exceptions.bad_request_400 import StickerEmojiInvalid
-import requests
-import json
+import logging
 import subprocess
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
-from pyrogram.errors import FloodWait
-from pyromod import listen
-from p_bar import progress_bar
-from subprocess import getstatusoutput
-from aiohttp import ClientSession
-import helper
-import time
+import datetime
 import asyncio
-import threading
+import os
+import requests
+import time
+from p_bar import progress_bar
+import aiohttp
+import tgcrypto
+import aiofiles
+from pyrogram.types import Message
+from pyrogram import Client, filters
+from pyromod import listen
 from flask import Flask
+import threading
 import sys
 import re
-import os
+import json
 
 # --- 1. RENDER 24/7 FIX ---
 app = Flask(__name__)
@@ -32,8 +32,8 @@ flask_thread.daemon = True
 flask_thread.start()
 
 # --- 2. CREDENTIALS ---
-auth_users = [5842823617]
-sudo_users = [5842823617]
+auth_users = [1392259010]
+sudo_users = [1392259010]
 
 bot = Client(
     "bot",
@@ -48,7 +48,6 @@ bot = Client(
 async def cancel_command(bot: Client, m: Message):
     user_id = m.from_user.id
     if user_id not in auth_users and user_id not in sudo_users:
-        await m.reply(f"**You Are Not Subscribed**", quote=True)
         return
     await m.reply_text("**STOPPED**🛑🛑", True)
     os.execl(sys.executable, sys.executable, *sys.argv)
@@ -57,95 +56,71 @@ async def cancel_command(bot: Client, m: Message):
 async def account_login(bot: Client, m: Message):
     user_id = m.from_user.id
     if user_id not in auth_users and user_id not in sudo_users:
-        await m.reply(f"**You Are Not Subscribed To This Bot\nContact - @Mahagoraxyz**", quote=True)
+        await m.reply(f"**Aap Authorized User nahi hain.**", quote=True)
         return
         
-    editable = await m.reply_text(f"**Hey [{m.from_user.first_name}](tg://user?id={m.from_user.id})\nSend txt file**")
-    input: Message = await bot.listen(editable.chat.id)
+    editable = await m.reply_text(f"**Hey [{m.from_user.first_name}](tg://user?id={m.from_user.id})\nSend txt file or Single Link**")
     
-    if input.document:
-        x = await input.download()
-        await input.delete(True)
-        file_name, ext = os.path.splitext(os.path.basename(x))
-        credit = f"[{m.from_user.first_name}](tg://user?id={m.from_user.id})"
-        try:
-            with open(x, "r") as f:
-                content = f.read()
-            content = content.split("\n")
-            links = []
-            for i in content:
-                links.append(i.split("://", 1))
-            os.remove(x)
-        except:
-            await m.reply_text("Invalid file input.🥲")
-            os.remove(x)
-            return
-    else:
-        content = input.text
-        content = content.split("\n")
-        links = []
-        for i in content:
-            links.append(i.split("://", 1))
-   
-    await editable.edit(f"Total links found: **{len(links)}**\nSend start index (e.g. 1)")
-    input0: Message = await bot.listen(editable.chat.id)
-    raw_text = input0.text
-    await input0.delete(True)
-
-    await editable.edit("**Enter Batch Name (or 'd' for file name)**")
-    input1: Message = await bot.listen(editable.chat.id)
-    raw_text0 = input1.text
-    await input1.delete(True)
-    b_name = file_name if raw_text0 == 'd' else raw_text0
-
-    await editable.edit("**Enter resolution (144, 240, 360, 480, 720, 1080)**")
-    input2: Message = await bot.listen(editable.chat.id)
-    raw_text2 = input2.text
-    await input2.delete(True)
-    res_map = {"144":"256x144","240":"426x240","360":"640x360","480":"854x480","720":"1280x720","1080":"1920x1080"}
-    res = res_map.get(raw_text2, "UN")
-    
-    await editable.edit("**Enter Name (or 'de' for default)**")
-    input3: Message = await bot.listen(editable.chat.id)
-    raw_text3 = input3.text
-    await input3.delete(True)
-    CR = credit if raw_text3 == 'de' else raw_text3
-
-    await editable.edit("**Enter PW Token or 'No'**")
-    input4: Message = await bot.listen(editable.chat.id)
-    working_token = input4.text
-    await input4.delete(True)
-
-    await editable.edit("**Send Thumb URL or 'No'**")
-    input6: Message = await bot.listen(editable.chat.id)
-    thumb = input6.text
-    await input6.delete(True)
-    await editable.delete()
-
-    if thumb.startswith("http"):
-        getstatusoutput(f"wget '{thumb}' -O 'thumb.jpg'")
-        thumb = "thumb.jpg"
-
-    count = int(raw_text)
     try:
+        input: Message = await bot.listen(editable.chat.id)
+        links = []
+        file_name = "batch"
+
+        if input.document:
+            x = await input.download()
+            await input.delete(True)
+            file_name, _ = os.path.splitext(os.path.basename(x))
+            with open(x, "r") as f:
+                content = f.read().split("\n")
+            for i in content:
+                if "://" in i:
+                    links.append(i.split("://", 1))
+            os.remove(x)
+        elif "://" in input.text:
+            links.append(input.text.split("://", 1))
+            await input.delete(True)
+        else:
+            await editable.edit("Invalid Input! Send a file or link.")
+            return
+
+        await editable.edit(f"Total links found: **{len(links)}**\nSend start index (e.g. 1)")
+        input0: Message = await bot.listen(editable.chat.id)
+        count = int(input0.text)
+        await input0.delete(True)
+
+        await editable.edit("**Enter Batch Name (or 'd')**")
+        input1: Message = await bot.listen(editable.chat.id)
+        b_name = file_name if input1.text == 'd' else input1.text
+        await input1.delete(True)
+
+        await editable.edit("**Resolution? (144, 240, 360, 480, 720, 1080)**")
+        input2: Message = await bot.listen(editable.chat.id)
+        res_choice = input2.text
+        await input2.delete(True)
+
+        await editable.edit("**Enter Credit Name (or 'de')**")
+        input3: Message = await bot.listen(editable.chat.id)
+        CR = f"[{m.from_user.first_name}]" if input3.text == 'de' else input3.text
+        await input3.delete(True)
+
+        await editable.edit("**PW Token or 'No'**")
+        input4: Message = await bot.listen(editable.chat.id)
+        working_token = input4.text
+        await input4.delete(True)
+
+        await editable.edit("**Thumb URL or 'No'**")
+        input6: Message = await bot.listen(editable.chat.id)
+        thumb_url = input6.text
+        await input6.delete(True)
+        await editable.delete()
+
+        thumb = "thumb.jpg" if thumb_url.startswith("http") else "No"
+        if thumb == "thumb.jpg":
+            subprocess.run(["wget", thumb_url, "-O", "thumb.jpg"])
+
+        import helper
         for i in range(count - 1, len(links)):
-            V = links[i][1].replace("file/d/","uc?export=download&id=").replace("://www.youtube-nocookie.com", "youtu.be").replace("/view?usp=sharing","")
-            url = "https://" + V
-
-            if "visionias" in url:
-                async with ClientSession() as session:
-                    async with session.get(url) as resp:
-                        text = await resp.text()
-                        url = re.search(r"(https://.*?playlist.m3u8.*?)\"", text).group(1)
-            elif 'classplusapp' in url or "testbook.com" in url:
-                url, contentId = url.split('&contentHashIdl=')
-                params = {'contentId': contentId, 'offlineDownload': "false"}
-                headers = {'x-access-token': f'{working_token}', 'user-agent': 'Mobile-Android'}
-                res_json = requests.get("https://api.classplusapp.com", params=params, headers=headers).json()
-                url = res_json['drmUrls']['manifestUrl'] if "drm" in url else res_json["url"]
-            elif "d1d34p8vz63oiq" in url or "sec1.pw.live" in url:
-                url = f"https://anonymouspwplayer-907e62cf4891.herokuapp.com{url}?token={working_token}"
-
+            url = "https://" + links[i][1]
             name1 = links[i][0].strip()
             name = f'{str(count).zfill(3)}) {name1[:60]}'
             cc = f'**{str(count).zfill(3)}.** {name1}\n**Batch:** {b_name}\n**By:** {CR}'
@@ -155,21 +130,16 @@ async def account_login(bot: Client, m: Message):
                     ka = await helper.download(url, name)
                     await bot.send_document(m.chat.id, ka, caption=cc)
                     os.remove(ka)
-                elif ".pdf" in url:
-                    os.system(f'yt-dlp -o "{name}.pdf" "{url}"')
-                    await bot.send_document(m.chat.id, f'{name}.pdf', caption=cc)
-                    os.remove(f'{name}.pdf')
                 else:
-                    prog = await m.reply_text(f"**Downloading:** `{name}`")
-                    res_file = await helper.download_video(url, name, raw_text2)
-                    await prog.delete()
+                    res_file = await helper.download_video(url, name, res_choice)
                     await helper.send_vid(bot, m, cc, res_file, thumb, name)
                 count += 1
             except Exception as e:
-                await m.reply_text(f"**Failed:** `{name}`\nError: {e}")
+                await m.reply_text(f"**Error in {name}:** {e}")
                 count += 1
-    except Exception as e:
-        await m.reply_text(str(e))
-    await m.reply_text("🔰Done Boss🔰")
 
-bot.run()                    
+        await m.reply_text("🔰 **All Tasks Done!** 🔰")
+    except Exception as e:
+        await m.reply_text(f"Error: {e}")
+
+bot.run()
