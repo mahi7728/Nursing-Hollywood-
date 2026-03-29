@@ -9,3 +9,6 @@ yt-dlp
 beautifulsoup4
 hachoir
 pillow
+ffmpeg-python
+static-ffmpeg
+aria2
