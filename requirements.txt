@@ -1,3 +1,4 @@
+aiofiles
 flask
 pyrogram
 pyromod
@@ -8,4 +9,3 @@ yt-dlp
 beautifulsoup4
 hachoir
 pillow
-aiofiles
