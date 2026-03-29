@@ -23,10 +23,11 @@ import os
 
 bot = Client(
     "bot",
-    api_id=38758234'
-    api_hash=a3e2c6c938fecb485a83fd57ef38bd74'
-    bot_token=8541206964:AAFwhvSmpfvM7ntCYifuy2yoAxVfo62EAoE)
-
+    api_id=38758234,
+    api_hash="a3e2c6c938fecb485a83fd57ef38bd74",
+    bot_token="8541206964:AAFwhvSmpfvM7ntCYifuy2yoAxVfo62EAoE"
+)
+    
 @bot.on_message(filters.command(["stop"]))
 async def cancel_command(bot: Client, m: Message):
     user_id = m.from_user.id if m.from_user is not None else None
