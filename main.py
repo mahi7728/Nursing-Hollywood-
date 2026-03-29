@@ -8,18 +8,32 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from pyrogram.errors import FloodWait
 from pyromod import listen
 from pyrogram.types import Message
-from pyrogram import Client, filters
 from p_bar import progress_bar
 from subprocess import getstatusoutput
 from aiohttp import ClientSession
 import helper
 import time
 import asyncio
+import threading
+from flask import Flask
 from pyrogram.types import User, Message
 from config import api_id, api_hash, bot_token, auth_users, sudo_users
 import sys
 import re
 import os
+
+# --- 24/7 HOSTING FEATURE START ---
+app = Flask(__name__)
+@app.route('/')
+def home():
+    return "Bot is Running 24/7"
+
+def run_flask():
+    app.run(host='0.0.0.0', port=10000)
+
+# Alag thread mein Flask chalana taaki bot bhi chale aur server bhi
+threading.Thread(target=run_flask).start()
+# --- 24/7 HOSTING FEATURE END ---
 
 bot = Client(
     "bot",
