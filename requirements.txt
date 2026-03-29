@@ -3,6 +3,7 @@ flask
 pyrogram
 pyromod
 tgcrypto
+cryptg
 requests
 aiohttp
 yt-dlp
@@ -12,3 +13,4 @@ pillow
 ffmpeg-python
 static-ffmpeg
 aria2
+uvloop
