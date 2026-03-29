@@ -1,159 +1,104 @@
 import logging
-import subprocess
-import datetime
 import asyncio
 import os
-import requests
-import time
-from p_bar import progress_bar
-import aiohttp
-import tgcrypto
-import aiofiles
-from pyrogram.types import Message
-from pyrogram import Client, filters
-from pyromod import listen
-from flask import Flask
-import threading
 import sys
-import re
-import json
+import threading
+import subprocess
+from flask import Flask
+from pyrogram import Client, filters
+from pyrogram.types import Message
+from pyromod import listen
 
-# --- 1. RENDER 24/7 FIX ---
+# --- 1. PYTHON 3.12+ LOOP FIX (Render Error Fix) ---
+try:
+    asyncio.get_event_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
+
+# --- 2. RENDER 24/7 SERVER ---
 app = Flask(__name__)
 @app.route('/')
-def home():
-    return "Bot is Alive"
+def home(): return "Bot is Alive"
 
 def run_flask():
     app.run(host='0.0.0.0', port=10000)
 
-flask_thread = threading.Thread(target=run_flask)
-flask_thread.daemon = True
-flask_thread.start()
+threading.Thread(target=run_flask, daemon=True).start()
 
-# --- 2. CREDENTIALS ---
-auth_users = [1392259010]
-sudo_users = [1392259010]
+# --- 3. CONFIGURATION ---
+API_ID = 38758234
+API_HASH = "a3e2c6c938fecb485a83fd57ef38bd74"
+BOT_TOKEN = "8541206964:AAFwhvSmpfvM7ntCYifuy2yoAxVfo62EAoE"
+AUTH_USERS = [1392259010]
 
-bot = Client(
-    "bot",
-    api_id=38758234,
-    api_hash="a3e2c6c938fecb485a83fd57ef38bd74",
-    bot_token="8541206964:AAFwhvSmpfvM7ntCYifuy2yoAxVfo62EAoE"
-)
+bot = Client("bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# --- 3. COMMANDS ---
-
-@bot.on_message(filters.command(["stop"]))
-async def cancel_command(bot: Client, m: Message):
-    user_id = m.from_user.id
-    if user_id not in auth_users and user_id not in sudo_users:
-        return
-    await m.reply_text("**STOPPED**🛑🛑", True)
-    os.execl(sys.executable, sys.executable, *sys.argv)
-
-@bot.on_message(filters.command(["start"]))
-async def account_login(bot: Client, m: Message):
-    user_id = m.from_user.id
-    if user_id not in auth_users and user_id not in sudo_users:
-        await m.reply(f"**Aap Authorized User nahi hain.**", quote=True)
-        return
-        
-    editable = await m.reply_text(f"**Hey [{m.from_user.first_name}](tg://user?id={m.from_user.id})\nSend txt file or Single Link**")
+# --- 4. START COMMAND ---
+@bot.on_message(filters.command("start") & filters.user(AUTH_USERS))
+async def batch_start(bot, m: Message):
+    editable = await m.reply_text(f"👋 **Hey {m.from_user.first_name}**\nSend .txt file or Link")
     
     try:
-        input: Message = await bot.listen(editable.chat.id)
+        input_msg = await bot.listen(m.chat.id)
         links = []
-        file_name = "batch"
-
-        if input.document:
-            x = await input.download()
-            await input.delete(True)
-            file_name, _ = os.path.splitext(os.path.basename(x))
-            with open(x, "r") as f:
-                content = f.read().split("\n")
-            for i in content:
-                if "://" in i:
-                    links.append(i.strip().split("://", 1))
-            os.remove(x)
-        elif "://" in input.text:
-            links.append(input.text.strip().split("://", 1))
-            await input.delete(True)
-        else:
-            await editable.edit("Invalid Input! Send a file or link.")
-            return
+        
+        # TXT File handling
+        if input_msg.document:
+            path = await input_msg.download()
+            with open(path, "r") as f:
+                for line in f:
+                    if "://" in line:
+                        links.append(line.strip().split("://", 1))
+            os.remove(path)
+        # Single Link handling
+        elif input_msg.text and "://" in input_msg.text:
+            links.append(input_msg.text.strip().split("://", 1))
 
         if not links:
-            await editable.edit("No links found in the input!")
-            return
+            return await editable.edit("No valid links found!")
 
-        await editable.edit(f"Total links found: **{len(links)}**\nSend start index (e.g. 1)")
-        input0: Message = await bot.listen(editable.chat.id)
-        count = int(input0.text)
-        await input0.delete(True)
+        await editable.edit(f"🔗 Found **{len(links)}** links. Send Start Index (e.g. 1):")
+        count = int((await bot.listen(m.chat.id)).text)
 
-        await editable.edit("**Enter Batch Name (or 'd')**")
-        input1: Message = await bot.listen(editable.chat.id)
-        b_name = file_name if input1.text == 'd' else input1.text
-        await input1.delete(True)
+        await editable.edit("📝 **Enter Batch Name:**")
+        b_name = (await bot.listen(m.chat.id)).text
 
-        await editable.edit("**Resolution? (144, 240, 360, 480, 720, 1080)**")
-        input2: Message = await bot.listen(editable.chat.id)
-        res_choice = input2.text
-        await input2.delete(True)
+        await editable.edit("🎬 **Resolution (144, 360, 480, 720):**")
+        res_choice = (await bot.listen(m.chat.id)).text
 
-        await editable.edit("**Enter Credit Name (or 'de')**")
-        input3: Message = await bot.listen(editable.chat.id)
-        CR = f"[{m.from_user.first_name}]" if input3.text == 'de' else input3.text
-        await input3.delete(True)
+        await editable.edit("🔑 **PW/Token (or 'No'):**")
+        token = (await bot.listen(m.chat.id)).text
 
-        await editable.edit("**PW Token or 'No'**")
-        input4: Message = await bot.listen(editable.chat.id)
-        working_token = input4.text
-        await input4.delete(True)
-
-        await editable.edit("**Thumb URL or 'No'**")
-        input6: Message = await bot.listen(editable.chat.id)
-        thumb_url = input6.text
-        await input6.delete(True)
         await editable.delete()
 
-        thumb = "thumb.jpg" if thumb_url.startswith("http") else "No"
-        if thumb == "thumb.jpg":
-            subprocess.run(["wget", thumb_url, "-O", "thumb.jpg"])
-
-        import helper
+        import helper 
         for i in range(count - 1, len(links)):
             try:
-                # URL cleaning logic
                 url = "https://" + links[i][1]
-                name1 = links[i][0].strip()
-                name = f'{str(count).zfill(3)}) {name1[:60]}'
-                cc = f'**{str(count).zfill(3)}.** {name1}\n**Batch:** {b_name}\n**By:** {CR}'
-
-                if "drive" in url:
-                    ka = await helper.download(url, name)
-                    await bot.send_document(m.chat.id, ka, caption=cc)
-                    if os.path.exists(ka): os.remove(ka)
-                else:
-                    # Video download with retry logic via helper
-                    res_file = await helper.download_video(url, name, res_choice)
-                    if res_file:
-                        await helper.send_vid(bot, m, cc, res_file, thumb, name)
-                    else:
-                        await m.reply_text(f"❌ **Failed to download:** `{name}`")
+                name = f"{str(count).zfill(3)}) {links[i][0].strip()[:60]}"
+                caption = f"**{name}**\n**Batch:** {b_name}"
+                
+                # Download via helper.py
+                res_file = await helper.download_video(url, name, res_choice, token)
+                if res_file:
+                    await helper.send_vid(bot, m, caption, res_file, "No", name)
                 
                 count += 1
-                # Chhota delay taaki Telegram flood limit na de
-                await asyncio.sleep(1)
-
-            except Exception as e:
-                await m.reply_text(f"⚠️ **Skipped {count}:** `{links[i][0]}`\n**Error:** {str(e)[:100]}")
+                await asyncio.sleep(1) # Flood avoid karne ke liye
+            except Exception:
                 count += 1
                 continue
-
-        await m.reply_text("🔰 **All Tasks Done!** 🔰")
+        
+        await bot.send_message(m.chat.id, "🔰 **All Tasks Done!** 🔰")
     except Exception as e:
-        await m.reply_text(f"Bot Error: {e}")
+        await m.reply(f"⚠️ Error: {e}")
 
-bot.run()
+# --- 5. RUN BOT ---
+async def main():
+    await bot.start()
+    print("Bot is LIVE! ✅")
+    await asyncio.Event().wait()
+
+if __name__ == "__main__":
+    asyncio.get_event_loop().run_until_complete(main())
+                                                
